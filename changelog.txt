@@ -11,3 +11,6 @@ v2020.12.19.1
 
 v2021.11.03.0
 - Fix for kodi 20. Speedtest crashed.
+
+v2022.12.28.0
+- Fix backup. Crashed when foreign like Hebrew characters are used in xml files
