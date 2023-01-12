@@ -218,5 +218,5 @@ def getNextMaintenance():
     return t1
 
 def logMaintenance(message):
-    #xbmc.log("ezmaintenanceplus: %s" % message, level=loglevel)
+#    xbmc.log("ezmaintenanceplus: %s" % message, level=loglevel)
 
