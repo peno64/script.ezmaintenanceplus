@@ -2,8 +2,11 @@
 <settings>
 	<category label="Maintenance">
 		<setting id="notify_mode" type="bool" label="Show Stats at Startup" default="false" />
-		<setting id="startup.cache" type="bool" label="AutoClean at Startup" default="true" />
-		<setting type="lsep" label="Package Folder Limits" />
+                <setting type="lsep" label="AutoClean" />
+		<setting id="startup.cache" type="bool" label="AutoClean Cache at Startup" default="true" />
+		<setting id="autoCleanDays" type="slider" label="AutoClean Cache Every Number of Days (0 is Not)" default="0" range="0,365" option="int" />
+		<setting id="autoCleanHour" type="slider" label="AutoClean Cache at Hour (0-12 = AM / 12-23 = PM)" default="4" range="0,23" option="int" enable="!eq(-1,0)" subsetting="true" />
+                <setting type="lsep" label="Package Folder Limits" />
 		<setting id="filesize_alert" type="slider" label="Max Total Files Size (MB)" default="200" range="25,500" option="int" />
 		<setting id="packagenumbers_alert" type="slider" label="Max Number of Zip Files" default="50" range="5,200" option="int" />
 		<setting type="lsep" label="Thumbnails Folder Limits" />
@@ -37,6 +40,7 @@
 		<setting id="img5" type="text" label="Image" default="special://home/addons/script.ezmaintenanceplus/fanart.jpg" enable="!eq(-3,false)"/>
     </category>
 	<category label="Backup/Restore">
+		<setting id="BackupFixSpecialHome" type="bool" label="Replace home folder in xml files with special://home" default="false" />
 		<setting id="download.path" type="folder" label="Backup Location" visible="True" />
 		<setting id="restore.path" type="folder" label="Restore from Zip Location (folder)" visible="True" />
     </category>

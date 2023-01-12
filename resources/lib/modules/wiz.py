@@ -17,15 +17,17 @@ import urllib
 import re
 import time
 import zipfile
-from resources.lib.modules import control, maintenance
+from resources.lib.modules import control, maintenance, tools
 from datetime import datetime
 from resources.lib.modules.backtothefuture import unicode, PY2
 
 if PY2:
     FancyURLopener = urllib.FancyURLopener
     from io import open as open
+    translatePath = xbmc.translatePath
 else:
     FancyURLopener = urllib.request.FancyURLopener
+    translatePath = xbmcvfs.translatePath
     unicode = str
 
 dp           = xbmcgui.DialogProgress()
@@ -35,11 +37,6 @@ addonInfo    = xbmcaddon.Addon().getAddonInfo
 AddonTitle="EZ Maintenance+"
 AddonID ='script.ezmaintenanceplus'
 
-# Code to map the old translatePath
-try:
-    translatePath = xbmcvfs.translatePath
-except AttributeError:
-    translatePath = xbmc.translatePath
 
 def get_Kodi_Version():
     try: KODIV        =  float(xbmc.getInfoLabel("System.BuildVersion")[:4])
@@ -48,14 +45,6 @@ def get_Kodi_Version():
 
 def open_Settings():
     open_Settings = xbmcaddon.Addon(id=AddonID).openSettings()
-
-def _get_keyboard( default="", heading="", hidden=False ):
-    """ shows a keyboard and returns a value """
-    keyboard = xbmc.Keyboard( default, heading, hidden )
-    keyboard.doModal()
-    if ( keyboard.isConfirmed() ):
-        return unicode( keyboard.getText())
-    return default
 
 def ENABLE_ADDONS():
     for root, dirs, files in os.walk(HOME_ADDONS,topdown=True):
@@ -158,30 +147,37 @@ def backup(mode='full'):
     if mode == 'full':
         defaultName    =  "kodi_backup"
         BACKUPDATA     =  control.HOME
-        FIX_SPECIAL()
+        getSetting = xbmcaddon.Addon().getSetting
+        if getSetting('BackupFixSpecialHome') == 'true':
+            FIX_SPECIAL()
     elif mode == 'userdata':
         defaultName    =  "kodi_settings"
         BACKUPDATA     =  control.USERDATA
     else: return
     if os.path.exists(BACKUPDATA):
         if not backupdir == '':
-            name = _get_keyboard(default=defaultName, heading='Name your Backup')
-            today = datetime.now().strftime('%Y%m%d%H%M')
-            today = re.sub('[^0-9]', '', str(today))
-            zipDATE = "_%s.zip" % today
-            name = re.sub(' ','_', name) + zipDATE
-            backup_zip = translatePath(os.path.join(backupdir, name))
-            exclude_database = ['.pyo','.log']
+            name = tools._get_keyboard(default=defaultName, heading='Name your Backup', cancel="-")
+            if name != "-":
+                today = datetime.now().strftime('%Y%m%d%H%M')
+                today = re.sub('[^0-9]', '', str(today))
+                zipDATE = "_%s.zip" % today
+                name = re.sub(' ','_', name) + zipDATE
+                backup_zip = translatePath(os.path.join(backupdir, name))
+                exclude_database = ['.pyo','.log']
 
-            try:
-                maintenance.clearCache(mode='silent')
-                maintenance.deleteThumbnails(mode='silent')
-                maintenance.purgePackages(mode='silent')
-            except:pass
+                try:
+                    maintenance.clearCache(mode='silent')
+                    maintenance.deleteThumbnails(mode='silent')
+                    maintenance.purgePackages(mode='silent')
+                except:pass
 
-            exclude_dirs = ['']
-            CreateZip(BACKUPDATA, backup_zip, 'Creating Backup', 'Backing up files', exclude_dirs, exclude_database)
-            dialog.ok(AddonTitle,'Backup complete')
+                exclude_dirs = ['']
+                canceled = CreateZip(BACKUPDATA, backup_zip, 'Creating Backup', 'Backing up files', exclude_dirs, exclude_database)
+                if canceled:
+                    os.unlink(backup_zip)
+                    dialog.ok(AddonTitle,'Backup canceled')
+                else:
+                    dialog.ok(AddonTitle,'Backup complete')
         else:
            dialog.ok(AddonTitle,'No backup location found: Please setup your Backup location')
 
@@ -208,8 +204,11 @@ def restore(zipFile):
             dp = xbmcgui.DialogProgress()
             dp.create("Restoring File","In Progress..." + '\n' + "Please Wait")
             dp.update(0, "" + '\n' + "Extracting Zip Please Wait")
-            ExtractZip(zipFile, control.HOME, dp)
-            dialog.ok(AddonTitle,'Restore Complete')
+            canceled = ExtractZip(zipFile, control.HOME, dp)
+            if canceled:
+                dialog.ok(AddonTitle,'Restore Canceled')
+            else:
+                dialog.ok(AddonTitle,'Restore Complete')
             xbmc.executebuiltin('ShutDown')
         except:pass
 
@@ -227,14 +226,19 @@ def CreateZip(folder, zip_filename, message_header, message1, exclude_dirs, excl
         for file in files: ITEM.append(file)
     N_ITEM =len(ITEM)
     count = 0
-
+    canceled = False
     zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED, allowZip64 = True)
     for dirpath, dirnames, filenames in os.walk(folder):
+        if canceled:
+            break
         try:
             dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
             filenames[:] = [f for f in filenames if f not in exclude_files]
 
             for file in filenames:
+                if dp.iscanceled():
+                    canceled = True
+                    break
                 count += 1
                 for_progress.append(file)
                 progress = len(for_progress) / float(N_ITEM) * 100
@@ -249,7 +253,7 @@ def CreateZip(folder, zip_filename, message_header, message1, exclude_dirs, excl
         except:pass
     zip_file.close()
 
-
+    return canceled
 
 # EXTRACT ZIP
 def ExtractZip(_in, _out, dp=None):
@@ -257,20 +261,26 @@ def ExtractZip(_in, _out, dp=None):
     return ExtractNOProgress(_in, _out)
 
 def ExtractNOProgress(_in, _out):
+    canceled = False
+
     try:
         zin = zipfile.ZipFile(_in, 'r')
         zin.extractall(_out)
     except Exception as e:
         print(str(e))
-    return True
+    return canceled
 
 def ExtractWithProgress(_in, _out, dp):
     zin = zipfile.ZipFile(_in,  'r')
     nFiles = float(len(zin.infolist()))
     count  = 0
     errors = 0
+    canceled = False
     try:
         for item in zin.infolist():
+            canceled = dp.iscanceled()
+            if canceled:
+                break
             count += 1
             update = count / nFiles * 100
             try: name = os.path.basename(item.filename)
@@ -287,7 +297,7 @@ def ExtractWithProgress(_in, _out, dp):
 
     except Exception as e:
         print(str(e))
-    return True
+    return canceled
 
 # INSTALL BUILD
 def buildInstaller(url):

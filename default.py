@@ -5,21 +5,18 @@ import time
 import requests
 from resources.lib.modules import control, tools
 from resources.lib.modules.backtothefuture import unicode, PY2
+from resources.lib.modules import maintenance
 
 if PY2:
     quote_plus = urllib.quote_plus
+    translatePath = xbmc.translatePath
 else:
     quote_plus = urllib.parse.quote_plus
+    translatePath = xbmcvfs.translatePath
 
 AddonID ='script.ezmaintenanceplus'
 USER_AGENT = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.0.3) Gecko/2008092417 Firefox/3.0.3'
 selfAddon    = xbmcaddon.Addon(id=AddonID)
-
-# Code to map the old translatePath
-try:
-    translatePath = xbmcvfs.translatePath
-except AttributeError:
-    translatePath = xbmc.translatePath
 
 # ADDON SETTINGS
 wizard1      =  control.setting('enable_wiz1')
@@ -82,6 +79,10 @@ def CAT_TOOLS():
     print ("NONE YET")
 
 def MAINTENANCE():
+    nextAutoCleanup = maintenance.getNextMaintenance()
+    if nextAutoCleanup > 0:
+        nextAutoCleanup = time.strftime("%a, %d %b %Y %I:%M:%S %p %Z", time.localtime(nextAutoCleanup))
+        CreateDir('Next Auto Cleanup: %s' % nextAutoCleanup,'xxx','xxx',None,ADDON_FANART,'',isFolder=False,iconImage='DefaultIconInfo.png')
     CreateDir('Clear Cache','url','clear_cache',ADDON_ICON,ADDON_FANART,'')
     CreateDir('Clear Packages','url','clear_packages',ADDON_ICON,ADDON_FANART,'')
     CreateDir('Clear Thumbnails','url','clear_thumbs',ADDON_ICON,ADDON_FANART,'')
@@ -201,15 +202,15 @@ def killxbmc():
 
 
 
-def CreateDir(name, url, action, icon, fanart, description, isFolder=False):
+def CreateDir(name, url, action, icon, fanart, description, isFolder=False, iconImage="DefaultFolder.png"):
         if icon == None or icon == '': icon = ADDON_ICON
         u=sys.argv[0]+"?url="+quote_plus(url)+"&action="+str(action)+"&name="+quote_plus(name)+"&icon="+quote_plus(icon)+"&fanart="+quote_plus(fanart)+"&description="+quote_plus(description)
         ok=True
         if PY2:
-            liz=xbmcgui.ListItem(name, iconImage="DefaultFolder.png", thumbnailImage=icon)
+            liz=xbmcgui.ListItem(name, iconImage=iconImage, thumbnailImage=icon)
         else:
             liz=xbmcgui.ListItem(name)
-            liz.setArt({'icon':"DefaultFolder.png"})
+            liz.setArt({'icon': iconImage})
             liz.setArt({'thumbnailImage': icon})
         liz.setInfo(type="Video", infoLabels={ "Title": name, "Plot": description } )
         liz.setProperty( "Fanart_Image", fanart)
@@ -261,7 +262,7 @@ description = params.get('description')
 
 content = params.get('content')
 
-
+#xbmc.log("ezmaintenanceplus: action: %s" % action, level=xbmc.LOGINFO)
 
 if action   == None: CATEGORIES()
 elif action == 'settings': control.openSettings()
@@ -317,8 +318,6 @@ elif action == 'install_build':
 
 elif action == 'speedtest':
     xbmc.executebuiltin('Runscript("special://home/addons/script.ezmaintenanceplus/resources/lib/modules/speedtest.py")')
-
-
 
 xbmcplugin.endOfDirectory(int(sys.argv[1]))
 

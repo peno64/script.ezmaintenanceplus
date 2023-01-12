@@ -30,14 +30,6 @@ AddonID ='script.ezmaintenanceplus'
 def open_Settings():
     open_Settings = xbmcaddon.Addon(id=AddonID).openSettings()
 
-def _get_keyboard( default="", heading="", hidden=False ):
-    """ shows a keyboard and returns a value """
-    keyboard = xbmc.Keyboard( default, heading, hidden )
-    keyboard.doModal()
-    if ( keyboard.isConfirmed() ):
-        return unicode( keyboard.getText())
-    return default
-
 def logView():
     modes = ['View Log', 'Upload Log to Pastebin']
     logPaths = []

@@ -8,6 +8,7 @@
 import os,sys
 
 import xbmc,xbmcaddon,xbmcplugin,xbmcgui,xbmcvfs
+from resources.lib.modules.backtothefuture import PY2
 
 
 integer = 1000
@@ -78,11 +79,10 @@ deleteDir = xbmcvfs.rmdir
 
 listDir = xbmcvfs.listdir
 
-# Code to map the old translatePath
-try:
-    translatePath = xbmcvfs.translatePath
-except AttributeError:
+if PY2:
     translatePath = xbmc.translatePath
+else:
+    translatePath = xbmcvfs.translatePath
 
 skinPath = translatePath('special://skin/')
 

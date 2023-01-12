@@ -1,14 +1,17 @@
-import xbmc, xbmcaddon, xbmcgui, xbmcplugin, os, sys, xbmcvfs, glob
+import xbmc, xbmcaddon, xbmcgui, xbmcplugin, os, sys, xbmcvfs, glob, math, time
 import shutil
 import urllib
 import re
 import os
+from resources.lib.modules.backtothefuture import PY2
 
 # Code to map the old translatePath
-try:
-    translatePath = xbmcvfs.translatePath
-except AttributeError:
+if PY2:
     translatePath = xbmc.translatePath
+    loglevel = xbmc.LOGNOTICE
+else:
+    translatePath = xbmcvfs.translatePath
+    loglevel = xbmc.LOGINFO
 
 thumbnailPath = translatePath('special://thumbnails');
 cachePath = os.path.join(translatePath('special://home'), 'cache')
@@ -169,3 +172,51 @@ def purgePackages(mode='verbose'):
             # dialog = xbmcgui.Dialog()
             # dialog.ok("Maintenance", "Deleting Packages all done")
     if mode == 'verbose': xbmc.executebuiltin('Notification(%s, %s, %s, %s)' % ('Maintenance' , 'Clean Packages Completed' , '3000', iconpath))
+
+def determineNextMaintenance():
+    getSetting = xbmcaddon.Addon().getSetting
+
+    autoCleanDays = getSetting('autoCleanDays')
+    if autoCleanDays is None:
+        days = 0
+    else:
+        days = int(autoCleanDays)
+
+    t1 = 0
+
+    if days > 0:
+        autoCleanHour = getSetting('autoCleanHour')
+        if autoCleanHour is None:
+            hour = 0
+        else:
+            hour = int(autoCleanHour)
+
+        t0 = int(math.floor(time.time()))
+
+        t1 = t0 + (days * 24 * 60 * 60)  # days * 24h * 60m * 60s
+
+        x = time.localtime(t1)
+
+        t1 += (hour - x.tm_hour) * 60 * 60 - x.tm_min * 60 - x.tm_sec
+        while (t1 <= t0):
+            t1 += 24 * 60 * 60 # add days until we are in the future
+
+        #t1 = t0 + 1 * 60 # for testing - every minute
+
+    win = xbmcgui.Window(10000)
+    win.setProperty("ezmaintenance.nextMaintenanceTime", str(t1))
+
+    logMaintenance("setNextMaintenance: %s" % str(t1))
+
+
+def getNextMaintenance():
+    win = xbmcgui.Window(10000)
+    t1 = int(win.getProperty("ezmaintenance.nextMaintenanceTime"))
+
+    logMaintenance("getNextMaintenance: %s" % str(t1))
+
+    return t1
+
+def logMaintenance(message):
+    xbmc.log("ezmaintenanceplus: %s" % message, level=loglevel)
+
