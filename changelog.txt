@@ -26,3 +26,6 @@ v2022.12.28.0
  - Backup always replaced the home folder reference in xml files with special://home
    Not all addons can handle this replace so it is now possible via a setting to disable this.
  - Backup Cancel didn't work. This is now fixed.
+
+2026.04.05.0
+ - Updated for Kodi 22

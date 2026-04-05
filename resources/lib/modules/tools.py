@@ -23,10 +23,8 @@ from datetime import datetime
 from resources.lib.modules.backtothefuture import unicode, PY2
 
 if PY2:
-    FancyURLopener = urllib.FancyURLopener
     translatePath = xbmc.translatePath
 else:
-    FancyURLopener = urllib.request.FancyURLopener
     translatePath = xbmcvfs.translatePath
 
 dp           = xbmcgui.DialogProgress()

@@ -22,17 +22,17 @@ from datetime import datetime
 from resources.lib.modules.backtothefuture import unicode, PY2
 
 if PY2:
-    FancyURLopener = urllib.FancyURLopener
     from io import open as open
     translatePath = xbmc.translatePath
 else:
-    FancyURLopener = urllib.request.FancyURLopener
     translatePath = xbmcvfs.translatePath
     unicode = str
 
 dp           = xbmcgui.DialogProgress()
 dialog       = xbmcgui.Dialog()
 addonInfo    = xbmcaddon.Addon().getAddonInfo
+
+USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11'
 
 AddonTitle="EZ Maintenance+"
 AddonID ='script.ezmaintenanceplus'
@@ -314,41 +314,110 @@ def buildInstaller(url):
         dialog.ok(AddonTitle,'Installation Complete...' + '\n' + 'Your interface will now be reset' + '\n' + 'Click ok to Start...')
         xbmc.executebuiltin('LoadProfile(Master user)')
 # DOWNLOADER
-class customdownload(FancyURLopener):
-    version = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11'
 
-def downloader(url, dest, dp = None):
-    if not dp:
-        dp = xbmcgui.DialogProgress()
-        dp.create(AddonTitle)
-    dp.update(0)
-    start_time=time.time()
-    customdownload().retrieve(url, dest, lambda nb, bs, fs, url=url: _pbhook(nb, bs, fs, dp, start_time))
+try:
+    if PY2:
+        FancyURLopener = urllib.FancyURLopener
+    else:
+        FancyURLopener = urllib.request.FancyURLopener
 
-def _pbhook(numblocks, blocksize, filesize, dp, start_time):
+    class customdownload(FancyURLopener):
+        version = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11'
+
+    def downloader(url, dest, dp = None):
+        if not dp:
+            dp = xbmcgui.DialogProgress()
+            dp.create(AddonTitle)
+        dp.update(0)
+        start_time=time.time()
+        customdownload().retrieve(url, dest, lambda nb, bs, fs, url=url: _pbhook(nb, bs, fs, dp, start_time))
+
+    def _pbhook(numblocks, blocksize, filesize, dp, start_time):
+            try:
+                percent = min(numblocks * blocksize * 100 / filesize, 100)
+                currently_downloaded = float(numblocks) * blocksize / (1024 * 1024)
+                kbps_speed = numblocks * blocksize / (time.time() - start_time)
+                if kbps_speed > 0:
+                    eta = (filesize - numblocks * blocksize) / kbps_speed
+                else:
+                    eta = 0
+                kbps_speed = kbps_speed / 1024
+                total = float(filesize) / (1024 * 1024)
+                mbs = '%.02f MB of %.02f MB' % (currently_downloaded, total)
+                e = 'Speed: %.02f Kb/s ' % kbps_speed
+                e += 'ETA: %02d:%02d' % divmod(eta, 60)
+                string = 'Downloading... Please Wait...'
+                dp.update(percent, mbs + '\n' + e + '\n' + string)
+            except:
+                percent = 100
+                dp.update(percent)
+                dp.close()
+                return
+
+            if dp.iscanceled():
+                raise Exception("Canceled")
+                dp.close()
+
+except (ImportError, AttributeError):
+    import urllib.request
+
+    def downloader(url, dest, dp = None):
+        if not dp:
+            dp = xbmcgui.DialogProgress()
+            dp.create(AddonTitle)
+        dp.update(0)
+        start_time=time.time()
+        req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
+        response = urllib.request.urlopen(req)
+
+        filesize = int(response.getheader('Content-Length', 0))
+        downloaded = 0
+        blocksize = 8192
+
+        with open(dest, 'wb') as f:
+            while True:
+                chunk = response.read(blocksize)
+                if not chunk:
+                    break
+
+                f.write(chunk)
+                downloaded += len(chunk)
+
+                _pbhook(downloaded, filesize, dp, start_time)
+
+                if dp.iscanceled():
+                    dp.close()
+                    raise Exception("Canceled")
+
+        dp.close()
+
+    def _pbhook(downloaded, filesize, dp, start_time):
         try:
-            percent = min(numblocks * blocksize * 100 / filesize, 100)
-            currently_downloaded = float(numblocks) * blocksize / (1024 * 1024)
-            kbps_speed = numblocks * blocksize / (time.time() - start_time)
-            if kbps_speed > 0:
-                eta = (filesize - numblocks * blocksize) / kbps_speed
+            percent = int(min(downloaded * 100 / filesize, 100)) if filesize > 0 else 0
+
+            currently_downloaded = downloaded / (1024 * 1024)
+            total = filesize / (1024 * 1024) if filesize > 0 else 0
+
+            elapsed = time.time() - start_time
+            speed = downloaded / elapsed if elapsed > 0 else 0
+
+            if speed > 0 and filesize > 0:
+                eta = (filesize - downloaded) / speed
             else:
                 eta = 0
-            kbps_speed = kbps_speed / 1024
-            total = float(filesize) / (1024 * 1024)
-            mbs = '%.02f MB of %.02f MB' % (currently_downloaded, total)
-            e = 'Speed: %.02f Kb/s ' % kbps_speed
-            e += 'ETA: %02d:%02d' % divmod(eta, 60)
-            string = 'Downloading... Please Wait...'
-            dp.update(percent, mbs + '\n' + e + '\n' + string)
-        except:
-            percent = 100
-            dp.update(percent)
-            dp.close()
-            return
 
-        if dp.iscanceled():
-            raise Exception("Canceled")
+            kbps_speed = speed / 1024
+
+            mbs = '%.02f MB of %.02f MB' % (currently_downloaded, total)
+            e = 'Speed: %.02f KB/s ' % kbps_speed
+            e += 'ETA: %02d:%02d' % divmod(int(eta), 60)
+
+            string = 'Downloading... Please Wait...'
+
+            dp.update(percent, mbs + '\n' + e + '\n' + string)
+
+        except:
+            dp.update(100)
             dp.close()
 
 ##############################    END    #########################################
